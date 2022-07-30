@@ -1,3 +1,14 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#ifndef _WIN32
+#include <unistd.h>
+#else
+#include <windows.h>
+#endif
+#include <sstream>
 #include "args.h"
 
 using namespace binlex;
@@ -8,6 +19,7 @@ Args::Args(){
 
 void Args::SetDefault(){
     options.timeout = 0;
+    options.instructions = false;
     options.input = NULL;
     options.threads = 1;
     options.help = false;
@@ -89,6 +101,7 @@ void Args::print_help(){
         "  -i  --input\t\tinput file\t\t(required)\n"
         "  -m  --mode\t\tset mode\t\t(optional)\n"
         "  -lm --list-modes\tlist modes\t\t(optional)\n"
+        "      --instructions\tinclude insn traits\t(optional)\n"
         "  -c  --corpus\t\tcorpus name\t\t(optional)\n"
         "  -g  --tag\t\tadd a tag\t\t(optional)\n"
         "           \t\t(can be specified multiple times)\n"
@@ -138,6 +151,9 @@ void Args::parse(int argc, char **argv){
         if (strcmp(argv[i], (char *)"-p") == 0 ||
             strcmp(argv[i], (char *)"--pretty") == 0){
             options.pretty = true;
+        }
+        if (strcmp(argv[i], (char *)"--instructions") == 0){
+            options.instructions = true;
         }
         if (strcmp(argv[i], (char *)"-t") == 0 ||
             strcmp(argv[i], (char *)"--threads") == 0){

@@ -5,6 +5,7 @@ using namespace LIEF::ELF;
 
 ELF::ELF(){
     total_exec_sections = 0;
+
     for (int i = 0; i < BINARY_MAX_SECTIONS; i++){
         sections[i].offset = 0;
         sections[i].size = 0;
@@ -12,36 +13,38 @@ ELF::ELF(){
     }
 }
 
+bool ELF::Setup(ARCH input_mode){
+    switch(input_mode){
+        case ARCH::EM_386:
+            mode = ARCH::EM_386;
+            break;
+        case ARCH::EM_X86_64:
+            mode = ARCH::EM_X86_64;
+            break;
+        default:
+            mode = ARCH::EM_NONE;
+            fprintf(stderr, "[x] unsupported mode.\n");
+            return false;
+    }
+    return true;
+}
+
 bool ELF::ReadVector(const std::vector<uint8_t> &data){
+    CalculateFileHashes(data);
     binary = Parser::parse(data);
     if (binary == NULL){
         return false;
     }
-    if (binary_arch == BINARY_ARCH_UNKNOWN ||
-        binary_mode == BINARY_MODE_UNKNOWN){
-        switch(binary->header().machine_type()){
-            case ARCH::EM_386:
-                SetArchitecture(BINARY_ARCH_X86, BINARY_MODE_32);
-                g_args.options.mode = "elf:x86";
-                break;
-            case ARCH::EM_X86_64:
-                SetArchitecture(BINARY_ARCH_X86, BINARY_MODE_64);
-                g_args.options.mode = "elf:x86_64";
-                break;
-            default:
-                binary_arch = BINARY_ARCH_UNKNOWN;
-                binary_mode = BINARY_MODE_UNKNOWN;
-                return false;
-        }
+    if (mode != binary->header().machine_type()){
+        fprintf(stderr, "[x] incorrect mode for binary architecture\n");
+        return false;
     }
-    CalculateFileHashes(data);
-    binary_type = BINARY_TYPE_ELF;
     return ParseSections();
 }
 
 bool ELF::ParseSections(){
     uint index = 0;
-    Binary::it_sections local_sections = binary->sections();
+    it_sections local_sections = binary->sections();
     for (auto it = local_sections.begin(); it != local_sections.end(); it++){
         if (it->flags() & (uint64_t)ELF_SECTION_FLAGS::SHF_EXECINSTR){
             sections[index].offset = it->offset();
@@ -50,7 +53,7 @@ bool ELF::ParseSections(){
             memset(sections[index].data, 0, sections[index].size);
             vector<uint8_t> data = binary->get_content_from_virtual_address(it->virtual_address(), it->original_size());
             memcpy(sections[index].data, &data[0], sections[index].size);
-            Binary::it_exported_symbols symbols = binary->exported_symbols();
+            it_exported_symbols symbols = binary->exported_symbols();
             // Add export to function list
             for (auto j = symbols.begin(); j != symbols.end(); j++){
                 uint64_t tmp_offset = binary->virtual_address_to_offset(j->value());
@@ -79,7 +82,7 @@ bool ELF::ParseSections(){
 }
 
 ELF::~ELF(){
-    for (uint32_t i = 0; i < total_exec_sections; i++){
+    for (int i = 0; i < total_exec_sections; i++){
         sections[i].offset = 0;
         sections[i].size = 0;
         free(sections[i].data);

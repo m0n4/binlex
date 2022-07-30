@@ -4,6 +4,7 @@ using namespace binlex;
 using namespace std;
 using namespace dotnet;
 
+
 TableEntry* TableEntry::TableEntryFactory(uint8_t entry_type) {
     switch(entry_type){
         case MODULE:
@@ -24,11 +25,14 @@ TableEntry* TableEntry::TableEntryFactory(uint8_t entry_type) {
     return NULL;
 };
 
+
 uint32_t Cor20MetadataTable::ParseTablePointers(char *&buffer) {
     uint32_t *buffer_aux;
     uint32_t read_bytes;
+    uint8_t i, j;
+
     buffer_aux = (uint32_t *)buffer;
-    uint8_t j = 0;
+    j = 0;
     read_bytes = 0;
     for (uint16_t i = 0; i < 8 * 8; i++) {
         if ( (mask_valid >> i) & 1 ) {
@@ -42,17 +46,15 @@ uint32_t Cor20MetadataTable::ParseTablePointers(char *&buffer) {
 uint32_t Cor20MetadataTable::ParseTables(char *&buffer) {
     char *buff_aux;
     TableEntry* entry;
+
     buff_aux = buffer;
-    for (size_t i = 0; i < 8 * 8; i++) {
+    for (size_t i = 0; i < 8 * 8; i++)
+    {
         if (table_entries[i] == 0) continue;
         for (size_t j = 0; j < table_entries[i]; j++) {
             entry = TableEntry().TableEntryFactory(i);
             if (entry == NULL) continue;
-            TableEntry::ParseArgs args;
-            args.buff = buff_aux;
-            args.heap_sizes = heap_sizes;
-            args.table_entries = table_entries;
-            buff_aux += entry->Parse(&args);
+            buff_aux += entry->Parse(buff_aux, heap_sizes, table_entries);
             tables[i].push_back(entry);
         }
         // We don't need to parse the rest of the .NET at this moment to get the IL code
@@ -188,7 +190,8 @@ bool DOTNET::ParseCor20StreamsHeader(){
 bool DOTNET::ParseCor20MetadataStream()
 {
     vector<uint8_t> raw_data;
-    unsigned char *storage_signature;
+    unsigned char *storage_signature, *storage_header, *streams_header, *streams_header_aux;
+    uint32_t size_of_storage_signature;
     dotnet::COR20_STREAM_HEADER *stream_metadata_header = NULL;
 
     raw_data = binary->get_content_from_virtual_address(cor20_header.metadata_rva, cor20_header.metadata_size);
@@ -215,6 +218,7 @@ void DOTNET::ParseSections(){
     size_t num_of_sections;
     uint8_t header, code_offset;
     vector<uint8_t> data;
+
     num_of_sections = ( cor20_metadata_table.tables[METHOD_DEF].size() < BINARY_MAX_SECTIONS) ? cor20_metadata_table.tables[METHOD_DEF].size() : BINARY_MAX_SECTIONS;
     for (size_t i = 0; i < num_of_sections; i++) {
         MethodDefEntry* mentry = (MethodDefEntry *)cor20_metadata_table.tables[METHOD_DEF][i];
@@ -232,8 +236,14 @@ void DOTNET::ParseSections(){
             code_offset = 1;
         } else {
             // FAT header
+            uint16_t max_stack = *(uint16_t *)&binary->get_content_from_virtual_address(
+                                 mentry->rva + 2,
+                                 2)[0];
             uint32_t code_size = *(uint32_t *)&binary->get_content_from_virtual_address(
                                  mentry->rva + 4,
+                                 4)[0];
+            uint32_t local_var_sig_tok = *(uint32_t *)&binary->get_content_from_virtual_address(
+                                 mentry->rva + 8,
                                  4)[0];
             section.size = code_size;
             code_offset = 12;
@@ -249,24 +259,15 @@ void DOTNET::ParseSections(){
 }
 
 bool DOTNET::ReadVector(const std::vector<uint8_t> &data){
+    CalculateFileHashes(data);
     binary = Parser::parse(data);
     if (binary == NULL){
         return false;
     }
-    if (binary_arch == BINARY_ARCH_UNKNOWN ||
-        binary_mode == BINARY_MODE_UNKNOWN){
-        switch(binary->header().machine()){
-            case MACHINE_TYPES::IMAGE_FILE_MACHINE_I386:
-                binary_arch = BINARY_ARCH_X86;
-                binary_mode = BINARY_MODE_CIL;
-                break;
-            default:
-                binary_arch = BINARY_ARCH_UNKNOWN;
-                binary_mode = BINARY_MODE_UNKNOWN;
-                return false;
-        }
+    if (mode != binary->header().machine()){
+        fprintf(stderr, "[x] incorrect mode for binary architecture\n");
+        return false;
     }
-    CalculateFileHashes(data);
     if (IsDotNet() == false) return false;
     if (Parse() == false) return false;
     ParseSections();

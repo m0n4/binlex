@@ -17,9 +17,6 @@
 #include <memory.h>
 #include "sha256.h"
 
-typedef uint32_t WORD;
-typedef uint8_t BYTE;
-
 /****************************** MACROS ******************************/
 #define ROTLEFT(a,b) (((a) << (b)) | ((a) >> (32-(b))))
 #define ROTRIGHT(a,b) (((a) >> (b)) | ((a) << (32-(b))))

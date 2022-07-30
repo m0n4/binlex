@@ -9,19 +9,16 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <assert.h>
-#if !defined(_WIN32) && !defined(__APPLE__)
 #include <byteswap.h>
-#endif // _WIN32
 #include <ctype.h>
 #include <capstone/capstone.h>
 #include <queue>
 #include <vector>
 #include <set>
 #include <map>
-#include "disassemblerbase.h"
+#include "decompilerbase.h"
 #include "json.h"
 
-// Bytecode Reference: https://en.wikipedia.org/wiki/List_of_CIL_instructions
 #define INVALID_OP 0xFFFFFFFF
 
 // CIL Decompiler Types
@@ -269,12 +266,11 @@
 using namespace std;
 
 namespace binlex {
-    class CILDecompiler : public DisassemblerBase {
-        /*
-        This class is used to decompile CIL/.NET bytecode.
-        */
+    class CILDecompiler : public DecompilerBase {
         private:
             int type = CIL_DECOMPILER_TYPE_UNSET;
+            char * hexdump_traits(char *buffer0, const void *data, int size, int operand_size);
+            char * traits_nl(char *traits);
             int update_offset(int operand_size, int i);
             typedef struct worker {
                 csh handle;
@@ -346,42 +342,39 @@ namespace binlex {
             //Map for all remaining instruction types that don't need special
             //treatment
             map<int, int> miscInstrMap;
+            bool Setup(int input_type);
             bool Decompile(void *data, int data_size, int index);
-            /**
-             * Get Traits as json vector
-             * @return list of traits JSON objects
-             */
-	        vector<json> GetTraits();
-            /**
-             * Get Trait as json
-             * @return return trait as json object
-             */
+	    /**
+	     * Get Traits as JSON
+	     * @return list of traits json objects
+	     */
+	    vector<json> GetTraits();
             json GetTrait(struct Trait *trait);
             /**
-             * Converts instruction objects to trait pattern for output
-             * @param insn Source instruction to check and resulting operand size
-             */
+            Converts instruction objects to trait pattern for output
+            @param insn Source instruction to check and resulting operand size
+            */
             string ConvTraitBytes(vector< Instruction* > instructions);
             /**
-             * Converts instruction objects to raw bytes for output using offsets
-             * and section data.
-             * @param insn Source instruction to check and resulting operand size
-             */
+            Converts instruction objects to raw bytes for output using offsets
+            and section data.
+            @param insn Source instruction to check and resulting operand size
+            */
             string ConvBytes(vector< Instruction* > allinst, void *data, int data_size);
             /**
-             * Checks if CIL instruction is conditional for stats
-             * @param insn Source instruction to check and resulting operand size
-             */
+            Checks if CIL instruction is conditional for stats
+            @param insn Source instruction to check and resulting operand size
+            */
             bool IsConditionalInsn(Instruction *insn);
             /**
-             * Checks if CIL instruction a prefix instruction
-             * @param insn Source instruction to check and resulting operand size
-             */
+            Checks if CIL instruction a prefix instruction
+            @param insn Source instruction to check and resulting operand size
+            */
             bool IsPrefixInstr(Instruction *insn);
             /**
-             * Gets size of trait using the beginning and ending offsets
-             * @param allinst Source instructions
-             */
+            Gets size of trait using the beginning and ending offsets
+            @param allinst Source instructions
+            */
             uint SizeOfTrait(vector< Instruction* > allinst);
             ~CILDecompiler();
     };
