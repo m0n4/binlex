@@ -3,25 +3,34 @@
 .PHONY: docker
 
 threads=1
+admin_user=admin
+admin_pass=changeme
+user=binlex
+pass=changeme
 config=Release
-PWD=$(shell pwd)
 
-all: build docs
+all: python docs
 
-check-config:
-	@echo "---check-config---"
-	@if [ -z `echo ${config} | grep -P '(Release|Debug)'` ]; then \
-		echo "[x] config parameter ${config} is invalid" 1>&2; \
-		exit 1; \
-	fi
+cli: git-unsafe
+	mkdir -p build/
+	cd build/ && \
+		cmake -S ../ \
+			-B . \
+			${args} && \
+		cmake --build . --config ${config} -- -j ${threads}
 
-build: check-config
-	cmake -B build -DCMAKE_BUILD_TYPE=${config} ${args}
-	cmake --build build --config ${config} --parallel
-	cmake --install build --prefix build/install --config ${config}
+python: git-unsafe
+	mkdir -p build/
+	cd build/ && \
+		cmake -S ../ \
+			-B . \
+			-DBUILD_PYTHON_BINDINGS=true \
+			-DPYBIND11_PYTHON_VERSION=`python -c "import platform; print(platform.python_version())"` \
+			${args} && \
+		cmake --build . --config ${config} -- -j ${threads}
 
 python-whl:
-	python3 -m pip wheel -v -w ${PWD}/build/ .
+	python3 -m pip wheel -v -w build/ .
 
 docs:
 	mkdir -p build/docs/html/docs/
@@ -50,6 +59,11 @@ docker-stop:
 docker-init:
 	@cd scripts/ && \
 		./init-all.sh
+
+docker-clean:
+	@docker stop $(shell docker ps -a -q) 2>/dev/null || echo > /dev/null
+	@docker rm $(shell docker ps -a -q) 2>/dev/null || echo > /dev/null
+	@docker rmi $(shell docker images -a -q) 2>/dev/null || echo > /dev/null
 
 docker-restart-blapi:
 	@docker stop $(shell docker container list --all -aqf name="blapi1")
@@ -146,11 +160,6 @@ clean:
 	rm -rf scripts/
 	rm -rf config/
 	rm -rf venv/
-
-clean-docker:
-	@docker stop $(shell docker ps -a -q) 2>/dev/null || echo > /dev/null
-	@docker rm $(shell docker ps -a -q) 2>/dev/null || echo > /dev/null
-	@docker rmi $(shell docker images -a -q) 2>/dev/null || echo > /dev/null
 
 clean-data:
 	rm -rf data/
